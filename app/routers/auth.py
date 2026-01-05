@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request
-from app.models.auth_model import LoginIn, TokenOut, RefreshIn, ChangePasswordIn
+from app.models.auth_model import LoginIn, TokenOut, RefreshIn, ChangePasswordIn, ForgotPasswordIn, ResetPasswordIn
 from app.models.user_model import UserCreate, UserOut, UserPublic, UserUpdate
-from app.services.auth_service import register_user, login_user, refresh_access, logout, change_password, update_user_profile
+from app.services.auth_service import register_user, login_user, refresh_access, logout, change_password, update_user_profile, request_password_reset, reset_password_with_otp
 from app.utils.deps import get_current_user
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
@@ -63,3 +63,25 @@ async def update_me(data: UserUpdate, user = Depends(get_current_user)):
         "phone": updated.get("phone"),
         "dob": updated.get("dob"),
     }
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordIn):
+    """
+    Request password reset OTP.
+    
+    Rate limiting:
+    - Max 5 requests per day
+    - 60 seconds cooldown between requests
+    """
+    result = await request_password_reset(data.email)
+    return result
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordIn):
+    """
+    Reset password using OTP.
+    
+    Verifies OTP and updates password. All existing sessions will be revoked.
+    """
+    result = await reset_password_with_otp(data.email, data.otp, data.new_password)
+    return result

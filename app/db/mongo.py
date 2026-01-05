@@ -16,6 +16,9 @@ async def connect_to_mongo():
     await db.sessions.create_index("userId")
     # Expire sessions after their expiration date
     await db.sessions.create_index("expires_at", expireAfterSeconds=0)
+    # Password reset tokens - index by email (unique) and auto-expire
+    await db.password_reset_tokens.create_index("email", unique=True)
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
     return mongo.client
 
 async def close_mongo():

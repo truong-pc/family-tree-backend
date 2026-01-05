@@ -21,3 +21,12 @@ class SessionOut(BaseModel):
 class ChangePasswordIn(BaseModel):
     old_password: str
     new_password: str
+
+# Forgot Password / Reset Password models
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+class ResetPasswordIn(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str

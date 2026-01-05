@@ -32,4 +32,10 @@ class Settings(BaseSettings):
     NEO4J_USER: str
     NEO4J_PASSWORD: str
 
+    # SMTP
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+
 settings = Settings()
