@@ -40,6 +40,7 @@ async def get_tree(chart_id: str):
                     .gender, 
                     .level, 
                     .description,
+                    .photoUrl,
                     dob: toString(n.dob),
                     dod: toString(n.dod)
                 }) AS nodes,

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.utils.deps import get_current_user, get_chart_or_404, can_read
 from app.services.tree_service import get_tree
-from app.models.person import TreeOut
+from app.models.person_model import TreeOut
 
 router = APIRouter(prefix="/api/v1/charts/{chartId}/tree", tags=["Tree"])
 

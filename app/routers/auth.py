@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
-from app.models.auth import LoginIn, TokenOut, RefreshIn, ChangePasswordIn
-from app.models.user import UserCreate, UserOut, UserPublic, UserUpdate
+from app.models.auth_model import LoginIn, TokenOut, RefreshIn, ChangePasswordIn
+from app.models.user_model import UserCreate, UserOut, UserPublic, UserUpdate
 from app.services.auth_service import register_user, login_user, refresh_access, logout, change_password, update_user_profile
 from app.utils.deps import get_current_user
 

@@ -11,6 +11,7 @@ class PersonCreate(BaseModel):
     dob: Optional[date] = None
     dod: Optional[date] = None
     description: Optional[str] = None
+    photoUrl: Optional[str] = None
     parentIds: Optional[List[int]] = None
 
 class PersonUpdate(BaseModel):
@@ -20,6 +21,7 @@ class PersonUpdate(BaseModel):
     dob: Optional[date] = None
     dod: Optional[date] = None
     description: Optional[str] = None
+    photoUrl: Optional[str] = None
 
 class PersonOut(BaseModel):
     personId: int
@@ -31,6 +33,7 @@ class PersonOut(BaseModel):
     dob: Optional[date] = None
     dod: Optional[date] = None
     description: Optional[str] = None
+    photoUrl: Optional[str] = None
 
 class TreeOut(BaseModel):
     nodes: list[dict]

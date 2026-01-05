@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.models.chart import ChartCreate, ChartUpdate, ChartOut, EditorIn, ChartPublicOut, EditorBasicOut
+from app.models.chart_model import ChartCreate, ChartUpdate, ChartOut, EditorIn, ChartPublicOut, EditorBasicOut
 from app.utils.deps import get_current_user, get_chart_or_404, can_read, is_owner
 from app.db.mongo import mongo
 from app.core.config import settings

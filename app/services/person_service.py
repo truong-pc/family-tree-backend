@@ -7,7 +7,7 @@ except Exception:  # pragma: no cover
     class Neo4jDate:  # fallback stub
         pass
 
-ALLOWED_FIELDS = {"personId","ownerId","chartId","name","gender","level","dob","dod","description"}
+ALLOWED_FIELDS = {"personId","ownerId","chartId","name","gender","level","dob","dod","description","photoUrl"}
 
 def _node_to_dict(node) -> dict:
     data = dict(node)
@@ -26,7 +26,7 @@ def _node_to_dict(node) -> dict:
     return out
 
 async def create_person(chart_id: str, owner_id: str, name: str, gender: str, level: int,
-                        dob=None, dod=None, description=None, parent_ids: list[int] | None = None):
+                        dob=None, dod=None, description=None, photo_url=None, parent_ids: list[int] | None = None):
     async with neo4j.driver.session() as session:
         # Generate auto-increment personId per chart
         res_id = await session.run(
@@ -51,11 +51,11 @@ async def create_person(chart_id: str, owner_id: str, name: str, gender: str, le
             CREATE (n:Person {{
                 personId:$pid, chartId:$cid, ownerId:$oid,
                 name:$name, gender:$gender, level:$level,
-                dob:$dob, dod:$dod, description:$desc
+                dob:$dob, dod:$dod, description:$desc, photoUrl:$photo
             }})
         """, pid=person_id, cid=chart_id, oid=owner_id, name=name, gender=gender, level=level,
            dob=str(dob) if dob else None, dod=str(dod) if dod else None,
-           desc=description)
+           desc=description, photo=photo_url)
 
         # Create relationships
         if parent_ids:

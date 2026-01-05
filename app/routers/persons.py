@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
-from app.models.person import PersonCreate, PersonUpdate, PersonOut
+from app.models.person_model import PersonCreate, PersonUpdate, PersonOut
 from app.utils.deps import get_current_user, get_chart_or_404, can_write, can_read
 from app.services.person_service import create_person, update_person, delete_person
 from app.db.neo4j import neo4j
@@ -12,7 +12,7 @@ async def create_person_route(chartId: str, body: PersonCreate, user=Depends(get
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
-    node = await create_person(chartId, chart["ownerId"], body.name, body.gender, body.level, body.dob, body.dod, body.description, body.parentIds)
+    node = await create_person(chartId, chart["ownerId"], body.name, body.gender, body.level, body.dob, body.dod, body.description, body.photoUrl, body.parentIds)
     return node
 
 @router.get("")
@@ -46,7 +46,8 @@ async def list_persons(chartId: str, q: Optional[str] = Query(None), gender: Opt
                 level: n.level,
                 dob: toString(n.dob),
                 dod: toString(n.dod),
-                description: n.description
+                description: n.description,
+                photoUrl: n.photoUrl
             }} AS n 
             ORDER BY n.level ASC, n.name ASC""", 
             **params
