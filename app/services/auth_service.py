@@ -197,6 +197,7 @@ async def request_password_reset(email: str) -> dict:
         "last_otp_sent_at": current_time,
         "daily_attempts": daily_attempts + 1,
         "last_attempt_date": datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc),
+        "otp_attempts": 0,
         "created_at": current_time if not token_record else token_record.get("created_at", current_time),
         "updated_at": current_time,
     }
@@ -213,18 +214,17 @@ async def request_password_reset(email: str) -> dict:
 async def reset_password_with_otp(email: str, otp: str, new_password: str) -> dict:
     """
     Reset password using OTP.
-    
-    Verifies OTP, updates password, and deletes the used OTP.
     """
+    # Verifies OTP, updates password, and deletes the used OTP.
     # Find the token record
     token_record = await PASSWORD_RESET_TOKENS().find_one({"email": email})
     
     if not token_record:
         raise HTTPException(status_code=400, detail="No OTP request found for this email")
     
-    # Check if OTP matches
-    if token_record.get("otp") != otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
+    # Check if OTP exists
+    if not token_record.get("otp"):
+        raise HTTPException(status_code=400, detail="No active OTP. try a new one.")
     
     # Check if OTP is expired
     expires_at = token_record.get("expires_at")
@@ -232,8 +232,34 @@ async def reset_password_with_otp(email: str, otp: str, new_password: str) -> di
         # Ensure expires_at is timezone-aware for comparison
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if now() > expires_at:
-            raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+        if now() > expires_at:  
+            raise HTTPException(status_code=400, detail="OTP has expired. try a new one.")
+    
+    # Check OTP attempt limit (prevent brute force)
+    otp_attempts = token_record.get("otp_attempts", 0)
+    if otp_attempts >= 5:
+        # Invalidate OTP after too many failed attempts
+        await PASSWORD_RESET_TOKENS().update_one(
+            {"email": email},
+            {"$unset": {"otp": "", "expires_at": ""}}
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed attempts."
+        )
+    
+    # Check if OTP matches
+    if token_record.get("otp") != otp:
+        # Increment failed attempt counter
+        await PASSWORD_RESET_TOKENS().update_one(
+            {"email": email},
+            {"$inc": {"otp_attempts": 1}}
+        )
+        remaining_attempts = 4 - otp_attempts
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid OTP. {remaining_attempts} attempts remaining."
+        )
     
     # Find the user
     user = await USERS().find_one({"email": email})
