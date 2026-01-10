@@ -15,7 +15,7 @@ async def connect_to_mongo():
     await db.charts_meta.create_index("editors")
     await db.sessions.create_index("userId")
     # Expire sessions after their expiration date
-    await db.sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.sessions.create_index("expiresAt", expireAfterSeconds=0)
     # Password reset tokens - index by email (unique)
     await db.password_reset_tokens.create_index("email", unique=True)
     return mongo.client

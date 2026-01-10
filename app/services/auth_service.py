@@ -236,6 +236,22 @@ async def reset_password_with_otp(email: str, otp: str, new_password: str) -> di
             raise HTTPException(status_code=400, detail="OTP has expired. try a new one.")
     
     # Check OTP attempt limit (prevent brute force)
+    # Reset attempts if it's a new day
+    last_otp_attempt_date = token_record.get("last_otp_attempt_date")
+    current_date = get_today_date()
+    
+    if last_otp_attempt_date:
+        if isinstance(last_otp_attempt_date, datetime):
+            last_otp_attempt_date = last_otp_attempt_date.date()
+        
+        if last_otp_attempt_date != current_date:
+            # New day - reset OTP attempts
+            await PASSWORD_RESET_TOKENS().update_one(
+                {"email": email},
+                {"$set": {"otp_attempts": 0, "last_otp_attempt_date": datetime.combine(current_date, datetime.min.time(), tzinfo=timezone.utc)}}
+            )
+            token_record["otp_attempts"] = 0
+    
     otp_attempts = token_record.get("otp_attempts", 0)
     if otp_attempts >= 5:
         # Invalidate OTP after too many failed attempts
@@ -250,10 +266,13 @@ async def reset_password_with_otp(email: str, otp: str, new_password: str) -> di
     
     # Check if OTP matches
     if token_record.get("otp") != otp:
-        # Increment failed attempt counter
+        # Increment failed attempt counter and update last attempt date
         await PASSWORD_RESET_TOKENS().update_one(
             {"email": email},
-            {"$inc": {"otp_attempts": 1}}
+            {
+                "$inc": {"otp_attempts": 1},
+                "$set": {"last_otp_attempt_date": datetime.combine(current_date, datetime.min.time(), tzinfo=timezone.utc)}
+            }
         )
         remaining_attempts = 4 - otp_attempts
         raise HTTPException(
