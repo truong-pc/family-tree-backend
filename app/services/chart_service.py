@@ -94,7 +94,7 @@ async def list_published_charts_public() -> list[dict]:
         {"$project": {
             "_id": 1,
             "ownerId": 1,
-            "ownerName": "$owner.full_name",
+            "ownerName": "$owner.fullName",
             "name": 1,
             "description": 1,
             "createdAt": 1,
@@ -115,7 +115,7 @@ async def list_edited_charts(match: dict[str, Any], projection: dict[str, Any] |
             "as": "owner",
         }},
         {"$unwind": {"path": "$owner", "preserveNullAndEmptyArrays": True}},
-        {"$addFields": {"ownerName": "$owner.full_name"}},
+        {"$addFields": {"ownerName": "$owner.fullName"}},
     ]
     if projection:
         pipeline.append({"$project": projection})
@@ -126,7 +126,7 @@ async def get_editor_basic_by_id(user_id: str) -> dict:
     """Return user's id, full name, and email for editor display purposes."""
     doc = await mongo.client[settings.MONGODB_DB].users.find_one(
         {"_id": user_id},
-        {"_id": 1, "full_name": 1, "email": 1},
+        {"_id": 1, "fullName": 1, "email": 1},
     )
     if not doc:
         raise HTTPException(status_code=404, detail="User not found")

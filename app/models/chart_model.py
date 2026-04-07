@@ -21,6 +21,8 @@ class ChartOut(BaseModel):
     published: bool = True
     createdAt: datetime
 
+    model_config = {"populate_by_name": True}
+
 class EditorIn(BaseModel):
     email: EmailStr
 
@@ -32,7 +34,11 @@ class ChartPublicOut(BaseModel):
     description: Optional[str] = None
     createdAt: datetime
 
+    model_config = {"populate_by_name": True}
+
 class EditorBasicOut(BaseModel):
     userId: str = Field(..., alias="_id")
-    fullName: Optional[str] = Field(default=None, alias="full_name")
+    fullName: Optional[str] = None  # MongoDB field renamed to fullName (no alias needed)
     email: EmailStr
+
+    model_config = {"populate_by_name": True}

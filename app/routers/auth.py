@@ -4,15 +4,15 @@ from app.models.user_model import UserCreate, UserOut, UserPublic, UserUpdate
 from app.services.auth_service import register_user, login_user, refresh_access, logout, change_password, update_user_profile, request_password_reset, reset_password_with_otp
 from app.utils.deps import get_current_user
 
-router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/v2/auth", tags=["Auth"])
 
 @router.post("/register", response_model=UserPublic)
 async def register(data: UserCreate):
-    user = await register_user(data.email, data.password, data.full_name, data.phone, data.dob)
+    user = await register_user(data.email, data.password, data.fullName, data.phone, data.dob)
     return {
         "userId": user["_id"],
         "email": user["email"],
-        "full_name": user["full_name"],
+        "fullName": user["fullName"],
         "phone": user.get("phone"),
         "dob": user.get("dob"),
     }
@@ -21,19 +21,19 @@ async def register(data: UserCreate):
 async def login(data: LoginIn, request: Request):
     access, refresh, user = await login_user(
         data.email, data.password,
-        user_agent=request.headers.get("User-Agent"),
+        userAgent=request.headers.get("User-Agent"),
         ip=request.client.host if request.client else None
     )
-    return {"access_token": access, "refresh_token": refresh, "token_type": "bearer"}
+    return {"accessToken": access, "refreshToken": refresh, "tokenType": "bearer"}
 
 @router.post("/refresh", response_model=TokenOut)
 async def refresh(data: RefreshIn):
-    new_access = await refresh_access(data.refresh_token)
-    return {"access_token": new_access, "refresh_token": None, "token_type": "bearer"}
+    newAccess = await refresh_access(data.refreshToken)
+    return {"accessToken": newAccess, "refreshToken": None, "tokenType": "bearer"}
 
 @router.post("/logout")
 async def do_logout(data: RefreshIn):
-    await logout(data.refresh_token)
+    await logout(data.refreshToken)
     return {"message": "Logged out"}
 
 @router.get("/me", response_model=UserPublic)
@@ -41,7 +41,7 @@ async def me(user = Depends(get_current_user)):
     return {
         "userId": user["_id"],
         "email": user["email"],
-        "full_name": user["full_name"],
+        "fullName": user["fullName"],
         "phone": user.get("phone"),
         "dob": user.get("dob"),
     }
@@ -49,17 +49,17 @@ async def me(user = Depends(get_current_user)):
 @router.post("/password/change")
 async def password_change(data: ChangePasswordIn, user = Depends(get_current_user)):
     """Change user's password and revoke all sessions (all refresh tokens)."""
-    await change_password(user["_id"], data.old_password, data.new_password)
+    await change_password(user["_id"], data.oldPassword, data.newPassword)
     return {"message": "Password updated. All sessions revoked. Please login again."}
 
 @router.put("/me", response_model=UserPublic)
 async def update_me(data: UserUpdate, user = Depends(get_current_user)):
-    """Update current user's profile fields (full_name, phone, dob)."""
-    updated = await update_user_profile(user["_id"], data.full_name, data.phone, data.dob)
+    """Update current user's profile fields (fullName, phone, dob)."""
+    updated = await update_user_profile(user["_id"], data.fullName, data.phone, data.dob)
     return {
         "userId": updated["_id"],
         "email": updated["email"],
-        "full_name": updated["full_name"],
+        "fullName": updated["fullName"],
         "phone": updated.get("phone"),
         "dob": updated.get("dob"),
     }
@@ -68,7 +68,7 @@ async def update_me(data: UserUpdate, user = Depends(get_current_user)):
 async def forgot_password(data: ForgotPasswordIn):
     """
     Request password reset OTP.
-    
+
     Rate limiting:
     - Max 5 requests per day
     - 60 seconds cooldown between requests
@@ -83,5 +83,5 @@ async def reset_password(data: ResetPasswordIn):
     
     Verifies OTP and updates password. All existing sessions will be revoked.
     """
-    result = await reset_password_with_otp(data.email, data.otp, data.new_password)
+    result = await reset_password_with_otp(data.email, data.otp, data.newPassword)
     return result

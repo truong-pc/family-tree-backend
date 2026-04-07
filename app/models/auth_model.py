@@ -6,12 +6,12 @@ class LoginIn(BaseModel):
     password: str
 
 class TokenOut(BaseModel):
-    access_token: str
-    refresh_token: str | None = None
-    token_type: str = "bearer"
+    accessToken: str
+    refreshToken: str | None = None
+    tokenType: str = "bearer"
 
 class RefreshIn(BaseModel):
-    refresh_token: str
+    refreshToken: str
 
 class SessionOut(BaseModel):
     sessionId: str
@@ -19,8 +19,8 @@ class SessionOut(BaseModel):
     ip: Optional[str] = None
 
 class ChangePasswordIn(BaseModel):
-    old_password: str
-    new_password: str
+    oldPassword: str
+    newPassword: str
 
 # Forgot Password / Reset Password models
 class ForgotPasswordIn(BaseModel):
@@ -29,4 +29,4 @@ class ForgotPasswordIn(BaseModel):
 class ResetPasswordIn(BaseModel):
     email: EmailStr
     otp: str
-    new_password: str
+    newPassword: str

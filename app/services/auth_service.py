@@ -14,16 +14,16 @@ USERS = lambda: mongo.client[settings.MONGODB_DB].users
 SESS = lambda: mongo.client[settings.MONGODB_DB].sessions
 PASSWORD_RESET_TOKENS = lambda: mongo.client[settings.MONGODB_DB].password_reset_tokens
 
-async def register_user(email: str, password: str, full_name: str, phone: str | None, dob: str | None):
+async def register_user(email: str, password: str, fullName: str, phone: str | None, dob: str | None):
     exists = await USERS().find_one({"email": email})
     if exists:
         raise HTTPException(status_code=409, detail="Email already registered")
-    user_id = str(uuid.uuid4())
+    userId = str(uuid.uuid4())
     doc = {
-        "_id": user_id,
+        "_id": userId,
         "email": email,
         "passwordHash": hash_password(password),
-        "full_name": full_name,
+        "fullName": fullName,
         "phone": phone,
         "dob": dob,
         "createdAt": now(),
@@ -32,85 +32,82 @@ async def register_user(email: str, password: str, full_name: str, phone: str | 
     await USERS().insert_one(doc)
     return doc
 
-async def login_user(email: str, password: str, user_agent: str | None, ip: str | None):
+async def login_user(email: str, password: str, userAgent: str | None, ip: str | None):
     user = await USERS().find_one({"email": email})
     if not user or not verify_password(password, user["passwordHash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access = create_access_token(user["_id"])
     refresh = create_refresh_token(user["_id"])
-    sess_id = str(uuid.uuid4())
+    sessId = str(uuid.uuid4())
     await SESS().insert_one({
-        "_id": sess_id,
+        "_id": sessId,
         "userId": user["_id"],
-        "refreshToken": refresh,  # (đơn giản: lưu plain, có thể hash nếu muốn)
-        "userAgent": user_agent,
+        "refreshToken": refresh,
+        "userAgent": userAgent,
         "ip": ip,
         "createdAt": now(),
         "expiresAt": now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     })
     return access, refresh, user
 
-async def refresh_access(refresh_token: str):
-    sess = await SESS().find_one({"refreshToken": refresh_token})
+async def refresh_access(refreshToken: str):
+    sess = await SESS().find_one({"refreshToken": refreshToken})
     if not sess:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-    # optionally: check exp by decoding; đơn giản hóa: tạo access mới
-    new_access = create_access_token(sess["userId"])
+    newAccess = create_access_token(sess["userId"])
     await SESS().update_one({"_id": sess["_id"]}, {"$set": {"expiresAt": now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)}})
-    return new_access
+    return newAccess
 
-async def logout(refresh_token: str):
-    res = await SESS().delete_one({"refreshToken": refresh_token})
+async def logout(refreshToken: str):
+    res = await SESS().delete_one({"refreshToken": refreshToken})
     if not res.deleted_count:
         raise HTTPException(status_code=404, detail="Session not found")
     return True
 
-async def change_password(user_id: str, old_password: str, new_password: str):
+async def change_password(userId: str, oldPassword: str, newPassword: str):
     """Change user's password and revoke all existing refresh tokens (all sessions)."""
-    user = await USERS().find_one({"_id": user_id})
+    user = await USERS().find_one({"_id": userId})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not verify_password(old_password, user["passwordHash"]):
+    if not verify_password(oldPassword, user["passwordHash"]):
         raise HTTPException(status_code=400, detail="Old password is incorrect")
 
     # Revoke all sessions/refresh tokens for this user
-    await SESS().delete_many({"userId": user_id})
+    await SESS().delete_many({"userId": userId})
 
     # Update password hash
     await USERS().update_one(
-        {"_id": user_id},
-        {"$set": {"passwordHash": hash_password(new_password), "updatedAt": now()}}
+        {"_id": userId},
+        {"$set": {"passwordHash": hash_password(newPassword), "updatedAt": now()}}
     )
 
     return True
 
-async def update_user_profile(user_id: str, full_name: str | None = None, phone: str | None = None, dob: str | None = None):
-    user = await USERS().find_one({"_id": user_id})
+async def update_user_profile(userId: str, fullName: str | None = None, phone: str | None = None, dob: str | None = None):
+    user = await USERS().find_one({"_id": userId})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    update_fields = {}
-    if full_name is not None:
-        update_fields["full_name"] = full_name
+    updateFields = {}
+    if fullName is not None:
+        updateFields["fullName"] = fullName
     if phone is not None:
-        update_fields["phone"] = phone
+        updateFields["phone"] = phone
     if dob is not None:
-        update_fields["dob"] = dob
+        updateFields["dob"] = dob
 
-    if not update_fields:
-        # Nothing to update
+    if not updateFields:
         return user
 
-    update_fields["updatedAt"] = now()
-    await USERS().update_one({"_id": user_id}, {"$set": update_fields})
-    # Return fresh document
-    new_user = await USERS().find_one({"_id": user_id})
-    return new_user
+    updateFields["updatedAt"] = now()
+    await USERS().update_one({"_id": userId}, {"$set": updateFields})
+    newUser = await USERS().find_one({"_id": userId})
+    return newUser
 
 
-#Forgot Password / Reset Password
+# Forgot Password / Reset Password
 
 OTP_EXPIRE_MINUTES = 10
 OTP_COOLDOWN_SECONDS = 60
@@ -138,164 +135,163 @@ async def request_password_reset(email: str) -> dict:
     user = await USERS().find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User with this email does not exist")
-    
+
     # Get existing token record for this email
-    token_record = await PASSWORD_RESET_TOKENS().find_one({"email": email})
+    tokenRecord = await PASSWORD_RESET_TOKENS().find_one({"email": email})
     today = get_today_date()
-    current_time = now()
-    
-    if token_record:
-        last_attempt_date = token_record.get("last_attempt_date")
-        daily_attempts = token_record.get("daily_attempts", 0)
-        last_otp_sent_at = token_record.get("last_otp_sent_at")
-        # Ensure last_otp_sent_at is timezone-aware
-        if last_otp_sent_at and last_otp_sent_at.tzinfo is None:
-            last_otp_sent_at = last_otp_sent_at.replace(tzinfo=timezone.utc)
+    currentTime = now()
+
+    if tokenRecord:
+        lastAttemptDate = tokenRecord.get("lastAttemptDate")
+        dailyAttempts = tokenRecord.get("dailyAttempts", 0)
+        lastOtpSentAt = tokenRecord.get("lastOtpSentAt")
+        # Ensure lastOtpSentAt is timezone-aware
+        if lastOtpSentAt and lastOtpSentAt.tzinfo is None:
+            lastOtpSentAt = lastOtpSentAt.replace(tzinfo=timezone.utc)
 
         # Step A: Check Daily Limit
-        if last_attempt_date:
+        if lastAttemptDate:
             # Convert to date if it's datetime
-            if isinstance(last_attempt_date, datetime):
-                last_attempt_date = last_attempt_date.date()
-            
-            if last_attempt_date == today:
+            if isinstance(lastAttemptDate, datetime):
+                lastAttemptDate = lastAttemptDate.date()
+
+            if lastAttemptDate == today:
                 # Same day - check if limit reached
-                if daily_attempts >= OTP_DAILY_LIMIT:
+                if dailyAttempts >= OTP_DAILY_LIMIT:
                     raise HTTPException(
                         status_code=429,
                         detail="Daily limit reached. Please try again tomorrow."
                     )
             else:
                 # New day - reset counter
-                daily_attempts = 0
-        
+                dailyAttempts = 0
+
         # Step B: Check Cooldown (60 seconds)
-        if last_otp_sent_at:
-            time_since_last = (current_time - last_otp_sent_at).total_seconds()
-            if time_since_last < OTP_COOLDOWN_SECONDS:
+        if lastOtpSentAt:
+            timeSinceLast = (currentTime - lastOtpSentAt).total_seconds()
+            if timeSinceLast < OTP_COOLDOWN_SECONDS:
                 raise HTTPException(
                     status_code=429,
                     detail=f"Please wait 1 minute before resending."
                 )
     else:
-        daily_attempts = 0
-    
+        dailyAttempts = 0
+
     # Step C: Success Case - Generate and send OTP
     otp = generate_otp()
-    expires_at = current_time + timedelta(minutes=OTP_EXPIRE_MINUTES)
-    
+    expiresAt = currentTime + timedelta(minutes=OTP_EXPIRE_MINUTES)
+
     # Send OTP email
-    email_sent = await send_otp_email(email, otp)
-    if not email_sent:
+    emailSent = await send_otp_email(email, otp)
+    if not emailSent:
         raise HTTPException(status_code=500, detail="Failed to send OTP email. Please try again.")
-    
+
     # Update or insert token record
-    update_data = {
+    updateData = {
         "email": email,
         "otp": otp,
-        "expires_at": expires_at,
-        "last_otp_sent_at": current_time,
-        "daily_attempts": daily_attempts + 1,
-        "last_attempt_date": datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc),
-        "otp_attempts": 0,
-        "created_at": current_time if not token_record else token_record.get("created_at", current_time),
-        "updated_at": current_time,
+        "expiresAt": expiresAt,
+        "lastOtpSentAt": currentTime,
+        "dailyAttempts": dailyAttempts + 1,
+        "lastAttemptDate": datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc),
+        "otpAttempts": 0,
+        "createdAt": currentTime if not tokenRecord else tokenRecord.get("createdAt", currentTime),
+        "updatedAt": currentTime,
     }
-    
+
     await PASSWORD_RESET_TOKENS().update_one(
         {"email": email},
-        {"$set": update_data},
+        {"$set": updateData},
         upsert=True
     )
-    
-    return {"message": "OTP sent to your email", "expires_in_minutes": OTP_EXPIRE_MINUTES}
+
+    return {"message": "OTP sent to your email", "expiresInMinutes": OTP_EXPIRE_MINUTES}
 
 
-async def reset_password_with_otp(email: str, otp: str, new_password: str) -> dict:
+async def reset_password_with_otp(email: str, otp: str, newPassword: str) -> dict:
     """
     Reset password using OTP.
     """
     # Verifies OTP, updates password, and deletes the used OTP.
     # Find the token record
-    token_record = await PASSWORD_RESET_TOKENS().find_one({"email": email})
-    
-    if not token_record:
+    tokenRecord = await PASSWORD_RESET_TOKENS().find_one({"email": email})
+
+    if not tokenRecord:
         raise HTTPException(status_code=400, detail="No OTP request found for this email")
-    
+
     # Check if OTP exists
-    if not token_record.get("otp"):
+    if not tokenRecord.get("otp"):
         raise HTTPException(status_code=400, detail="No active OTP. try a new one.")
-    
+
     # Check if OTP is expired
-    expires_at = token_record.get("expires_at")
-    if expires_at:
-        # Ensure expires_at is timezone-aware for comparison
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if now() > expires_at:  
+    expiresAt = tokenRecord.get("expiresAt")
+    if expiresAt:
+        # Ensure expiresAt is timezone-aware for comparison
+        if expiresAt.tzinfo is None:
+            expiresAt = expiresAt.replace(tzinfo=timezone.utc)
+        if now() > expiresAt:
             raise HTTPException(status_code=400, detail="OTP has expired. try a new one.")
-    
+
     # Check OTP attempt limit (prevent brute force)
     # Reset attempts if it's a new day
-    last_otp_attempt_date = token_record.get("last_otp_attempt_date")
-    current_date = get_today_date()
-    
-    if last_otp_attempt_date:
-        if isinstance(last_otp_attempt_date, datetime):
-            last_otp_attempt_date = last_otp_attempt_date.date()
-        
-        if last_otp_attempt_date != current_date:
+    lastOtpAttemptDate = tokenRecord.get("lastOtpAttemptDate")
+    currentDate = get_today_date()
+
+    if lastOtpAttemptDate:
+        if isinstance(lastOtpAttemptDate, datetime):
+            lastOtpAttemptDate = lastOtpAttemptDate.date()
+
+        if lastOtpAttemptDate != currentDate:
             # New day - reset OTP attempts
             await PASSWORD_RESET_TOKENS().update_one(
                 {"email": email},
-                {"$set": {"otp_attempts": 0, "last_otp_attempt_date": datetime.combine(current_date, datetime.min.time(), tzinfo=timezone.utc)}}
+                {"$set": {"otpAttempts": 0, "lastOtpAttemptDate": datetime.combine(currentDate, datetime.min.time(), tzinfo=timezone.utc)}}
             )
-            token_record["otp_attempts"] = 0
-    
-    otp_attempts = token_record.get("otp_attempts", 0)
-    if otp_attempts >= 5:
+            tokenRecord["otpAttempts"] = 0
+
+    otpAttempts = tokenRecord.get("otpAttempts", 0)
+    if otpAttempts >= 5:
         # Invalidate OTP after too many failed attempts
         await PASSWORD_RESET_TOKENS().update_one(
             {"email": email},
-            {"$unset": {"otp": "", "expires_at": ""}}
+            {"$unset": {"otp": "", "expiresAt": ""}}
         )
         raise HTTPException(
             status_code=429,
             detail="Too many failed attempts."
         )
-    
+
     # Check if OTP matches
-    if token_record.get("otp") != otp:
+    if tokenRecord.get("otp") != otp:
         # Increment failed attempt counter and update last attempt date
         await PASSWORD_RESET_TOKENS().update_one(
             {"email": email},
             {
-                "$inc": {"otp_attempts": 1},
-                "$set": {"last_otp_attempt_date": datetime.combine(current_date, datetime.min.time(), tzinfo=timezone.utc)}
+                "$inc": {"otpAttempts": 1},
+                "$set": {"lastOtpAttemptDate": datetime.combine(currentDate, datetime.min.time(), tzinfo=timezone.utc)}
             }
         )
-        remaining_attempts = 4 - otp_attempts
+        remainingAttempts = 4 - otpAttempts
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid OTP. {remaining_attempts} attempts remaining."
+            detail=f"Invalid OTP. {remainingAttempts} attempts remaining."
         )
-    
+
     # Find the user
     user = await USERS().find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Update the user's password
     await USERS().update_one(
         {"_id": user["_id"]},
-        {"$set": {"passwordHash": hash_password(new_password), "updatedAt": now()}}
+        {"$set": {"passwordHash": hash_password(newPassword), "updatedAt": now()}}
     )
-    
+
     # Revoke all sessions for this user (security measure)
     await SESS().delete_many({"userId": user["_id"]})
-    
+
     # Delete the used OTP record
     await PASSWORD_RESET_TOKENS().delete_one({"email": email})
-    
-    return {"message": "Password reset successfully. Please login with your new password."}
 
+    return {"message": "Password reset successfully. Please login with your new password."}

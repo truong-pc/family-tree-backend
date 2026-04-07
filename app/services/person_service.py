@@ -7,7 +7,7 @@ except Exception:  # pragma: no cover
     class Neo4jDate:  # fallback stub
         pass
 
-ALLOWED_FIELDS = {"personId","ownerId","chartId","name","gender","level","dob","dod","description","photoUrl"}
+ALLOWED_FIELDS = {"personId", "ownerId", "chartId", "name", "gender", "level", "dob", "dod", "description", "photoUrl"}
 
 def _node_to_dict(node) -> dict:
     data = dict(node)
@@ -25,11 +25,11 @@ def _node_to_dict(node) -> dict:
         out[k] = v
     return out
 
-async def create_person(chart_id: str, owner_id: str, name: str, gender: str, level: int,
-                        dob=None, dod=None, description=None, photo_url=None, parent_ids: list[int] | None = None):
+async def create_person(chartId: str, ownerId: str, name: str, gender: str, level: int,
+                        dob=None, dod=None, description=None, photoUrl=None):
     async with neo4j.driver.session() as session:
         # Generate auto-increment personId per chart
-        res_id = await session.run(
+        resId = await session.run(
             """
             MATCH (x:Person {chartId:$cid})
             WITH coalesce(max(x.personId), 0) AS mx
@@ -39,42 +39,33 @@ async def create_person(chart_id: str, owner_id: str, name: str, gender: str, le
             SET c.value = c.value + 1
             RETURN c.value AS nextId
             """,
-            cid=chart_id,
+            cid=chartId,
         )
-        person_id_rec = await res_id.single()
-        if not person_id_rec:
+        personIdRec = await resId.single()
+        if not personIdRec:
             raise HTTPException(status_code=500, detail="Failed to generate personId")
-        person_id: int = person_id_rec["nextId"]
+        personId: int = personIdRec["nextId"]
 
-        # Create node (level provided by user, no auto-calculation)
-        await session.run(f"""
-            CREATE (n:Person {{
+        # Create node (birthOrder removed)
+        await session.run("""
+            CREATE (n:Person {
                 personId:$pid, chartId:$cid, ownerId:$oid,
                 name:$name, gender:$gender, level:$level,
                 dob:$dob, dod:$dod, description:$desc, photoUrl:$photo
-            }})
-        """, pid=person_id, cid=chart_id, oid=owner_id, name=name, gender=gender, level=level,
+            })
+        """, pid=personId, cid=chartId, oid=ownerId, name=name, gender=gender, level=level,
            dob=str(dob) if dob else None, dod=str(dod) if dod else None,
-           desc=description, photo=photo_url)
-
-        # Create relationships
-        if parent_ids:
-            await session.run("""
-                MATCH (parent:Person), (child:Person)
-                WHERE parent.personId IN $parentIds AND parent.chartId=$cid
-                  AND child.personId=$childId AND child.chartId=$cid
-                MERGE (parent)-[:PARENT_OF]->(child)
-            """, parentIds=parent_ids, childId=person_id, cid=chart_id)
+           desc=description, photo=photoUrl)
 
         # Return created
         res = await session.run("""
             MATCH (n:Person {personId:$pid, chartId:$cid})
             RETURN n
-        """, pid=person_id, cid=chart_id)
+        """, pid=personId, cid=chartId)
         node = (await res.single())["n"]
         return _node_to_dict(node)
 
-async def update_person(chart_id: str, person_id: int, patch: dict):
+async def update_person(chartId: str, personId: int, patch: dict):
     if not patch:
         raise HTTPException(status_code=400, detail="Nothing to update")
     # Do not allow changing identity fields
@@ -86,19 +77,19 @@ async def update_person(chart_id: str, person_id: int, patch: dict):
             MATCH (n:Person {{personId:$pid, chartId:$cid}})
             SET {setters}
             RETURN n
-        """, pid=person_id, cid=chart_id, **patch)
+        """, pid=personId, cid=chartId, **patch)
         rec = await res.single()
         if not rec:
             raise HTTPException(status_code=404, detail="Person not found")
-        return _node_to_dict(rec["n"]) 
+        return _node_to_dict(rec["n"])
 
-async def delete_person(chart_id: str, person_id: int):
+async def delete_person(chartId: str, personId: int):
     async with neo4j.driver.session() as session:
         res = await session.run("""
             MATCH (n:Person {personId:$pid, chartId:$cid})
             DETACH DELETE n
             RETURN count(*) as c
-        """, pid=person_id, cid=chart_id)
+        """, pid=personId, cid=chartId)
         c = (await res.single())["c"]
         if c == 0:
             raise HTTPException(status_code=404, detail="Person not found")

@@ -1,18 +1,45 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
-from app.models.person_model import PersonCreate, PersonUpdate, PersonOut
+from app.models.person_model import PersonCreate, PersonCreateWithParent, PersonCreateWithSpouse, PersonUpdate, PersonOut
 from app.utils.deps import get_current_user, get_chart_or_404, can_write, can_read
 from app.services.person_service import create_person, update_person, delete_person
+from app.services.relationship_service import add_parent_of, add_spouse_of
 from app.db.neo4j import neo4j
 
-router = APIRouter(prefix="/api/v1/charts/{chartId}/persons", tags=["Persons"])
+router = APIRouter(prefix="/api/v2/charts/{chartId}/persons", tags=["Persons"])
 
 @router.post("", response_model=PersonOut)
 async def create_person_route(chartId: str, body: PersonCreate, user=Depends(get_current_user)):
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
-    node = await create_person(chartId, chart["ownerId"], body.name, body.gender, body.level, body.dob, body.dod, body.description, body.photoUrl, body.parentIds)
+    node = await create_person(chartId, chart["ownerId"], body.name, body.gender, body.level, body.dob, body.dod, body.description, body.photoUrl)
+    return node
+
+@router.post("/add-child", response_model=PersonOut)
+async def add_child_person_route(chartId: str, body: PersonCreateWithParent, user=Depends(get_current_user)):
+    chart = await get_chart_or_404(chartId)
+    if not can_write(chart, user["_id"]):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    node = await create_person(
+        chartId, chart["ownerId"], body.name, body.gender, body.level, 
+        body.dob, body.dod, body.description, body.photoUrl
+    )
+    await add_parent_of(chartId, body.parentId, node["personId"], body.childOrder)
+    return node
+
+@router.post("/add-spouse", response_model=PersonOut)
+async def add_spouse_person_route(chartId: str, body: PersonCreateWithSpouse, user=Depends(get_current_user)):
+    chart = await get_chart_or_404(chartId)
+    if not can_write(chart, user["_id"]):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    node = await create_person(
+        chartId, chart["ownerId"], body.name, body.gender, body.level, 
+        body.dob, body.dod, body.description, body.photoUrl
+    )
+    await add_spouse_of(chartId, body.spouseId, node["personId"], body.order)
     return node
 
 @router.get("")
