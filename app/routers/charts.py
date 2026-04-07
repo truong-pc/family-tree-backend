@@ -5,7 +5,7 @@ from app.db.mongo import mongo
 from app.core.config import settings
 from app.services.chart_service import create_chart_for_owner, delete_chart_hard, add_editor, get_editor_basic_by_id, list_edited_charts, remove_editor, list_published_charts_public
 
-router = APIRouter(prefix="/api/v2", tags=["Charts"])
+router = APIRouter(prefix="/api/v1", tags=["Charts"])
 
 @router.post("/charts", response_model=ChartOut)
 async def create_chart(data: ChartCreate, user=Depends(get_current_user)):

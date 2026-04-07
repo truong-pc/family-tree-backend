@@ -3,7 +3,7 @@ from app.utils.deps import get_current_user, get_chart_or_404, can_write
 from app.models.person_model import ParentOfIn, SpouseOfIn
 from app.services.relationship_service import add_parent_of, remove_parent_of, add_spouse_of, remove_spouse_of
 
-router = APIRouter(prefix="/api/v2/charts/{chartId}/relationships", tags=["Relationships"])
+router = APIRouter(prefix="/api/v1/charts/{chartId}/relationships", tags=["Relationships"])
 
 @router.post("/parent-of")
 async def create_parent_of(chartId: str, body: ParentOfIn, user=Depends(get_current_user)):

@@ -60,13 +60,13 @@ async def add_spouse_of(chart_id: str, person1_id: int, person2_id: int, order: 
             MATCH (p1:Person {personId: $p1Id, chartId: $cid})
             MATCH (p2:Person {personId: $p2Id, chartId: $cid})
             // Count INCOMING edges (someone already married this person as target/female)
-            OPTIONAL MATCH ()-[:SPOUSE_OF]->(p1)
-            WITH p1, p2, count(*) AS p1InCount
-            OPTIONAL MATCH ()-[:SPOUSE_OF]->(p2)
+            OPTIONAL MATCH ()-[r1:SPOUSE_OF]->(p1)
+            WITH p1, p2, count(r1) AS p1InCount
+            OPTIONAL MATCH ()-[r2:SPOUSE_OF]->(p2)
             RETURN p1.personId AS id1, p2.personId AS id2,
                    p1.gender AS g1, p2.gender AS g2,
                    p1InCount AS p1InCount,
-                   count(*) AS p2InCount
+                   count(r2) AS p2InCount
         """, p1Id=person1_id, p2Id=person2_id, cid=chart_id)
 
         result = await check.single()

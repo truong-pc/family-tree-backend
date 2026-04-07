@@ -6,7 +6,7 @@ from app.services.person_service import create_person, update_person, delete_per
 from app.services.relationship_service import add_parent_of, add_spouse_of
 from app.db.neo4j import neo4j
 
-router = APIRouter(prefix="/api/v2/charts/{chartId}/persons", tags=["Persons"])
+router = APIRouter(prefix="/api/v1/charts/{chartId}/persons", tags=["Persons"])
 
 @router.post("", response_model=PersonOut)
 async def create_person_route(chartId: str, body: PersonCreate, user=Depends(get_current_user)):

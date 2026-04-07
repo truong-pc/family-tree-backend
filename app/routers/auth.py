@@ -4,7 +4,7 @@ from app.models.user_model import UserCreate, UserOut, UserPublic, UserUpdate
 from app.services.auth_service import register_user, login_user, refresh_access, logout, change_password, update_user_profile, request_password_reset, reset_password_with_otp
 from app.utils.deps import get_current_user
 
-router = APIRouter(prefix="/api/v2/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 @router.post("/register", response_model=UserPublic)
 async def register(data: UserCreate):
