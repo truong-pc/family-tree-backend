@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Literal
 from datetime import date
 
@@ -14,12 +14,19 @@ class PersonCreate(BaseModel):
     photoUrl: Optional[str] = None
 
 class PersonCreateWithParent(PersonCreate):
-    parentId: int
+    fatherId: Optional[int] = None
+    motherId: Optional[int] = None
     childOrder: Optional[int] = Field(default=None, ge=1, description="Birth order of child among siblings")
+    
+    @model_validator(mode="after")
+    def check_at_least_one_parent(self):
+        if self.fatherId is None and self.motherId is None:
+            raise ValueError("At least one of fatherId or motherId must be provided")
+        return self
 
 class PersonCreateWithSpouse(PersonCreate):
     spouseId: int
-    order: Optional[int] = Field(default=None, ge=1, description="Marriage order")
+    spouseOrder: Optional[int] = Field(default=None, ge=1, description="Marriage order")
 
 class PersonUpdate(BaseModel):
     name: Optional[str] = None
@@ -41,20 +48,42 @@ class PersonOut(BaseModel):
     dod: Optional[date] = None
     description: Optional[str] = None
     photoUrl: Optional[str] = None
+    lunarDeathDay: Optional[int] = None
+    lunarDeathMonth: Optional[int] = None
+    lunarDeathYear: Optional[int] = None
+    lunarIsLeap: Optional[bool] = None
 
 
 # --- Relationship request models ---
 
-class ParentOfIn(BaseModel):
-    parentId: int
+class FatherOfIn(BaseModel):
+    fatherId: int
+    childId: int
+    childOrder: Optional[int] = Field(default=None, ge=1, description="Birth order of child among siblings")
+
+class MotherOfIn(BaseModel):
+    motherId: int
     childId: int
     childOrder: Optional[int] = Field(default=None, ge=1, description="Birth order of child among siblings")
 
 class SpouseOfIn(BaseModel):
     person1Id: int
     person2Id: int
-    order: Optional[int] = Field(default=None, ge=1, description="Marriage order")
+    spouseOrder: Optional[int] = Field(default=None, ge=1, description="Marriage order")
 
+
+# --- Person Detail response models ---
+
+class RelatedPersonOut(BaseModel):
+    personId: int
+    name: str
+    gender: Gender
+    relationship: Optional[str] = None  # e.g. "FATHER_OF", "MOTHER_OF"
+
+class PersonDetailOut(PersonOut):
+    parents: List[RelatedPersonOut] = []
+    spouses: List[RelatedPersonOut] = []
+    children: List[RelatedPersonOut] = []
 
 
 # --- Tree response model ---
@@ -64,17 +93,12 @@ class TreeNode(BaseModel):
     name: str
     gender: Gender
     level: int
-    dob: Optional[str] = None
-    dod: Optional[str] = None
-    description: Optional[str] = None
     photoUrl: Optional[str] = None
 
 class TreeLink(BaseModel):
     source: int
     target: int
     type: str
-    childOrder: Optional[int] = None
-    order: Optional[int] = None
 
 class TreeOut(BaseModel):
     nodes: list[TreeNode]

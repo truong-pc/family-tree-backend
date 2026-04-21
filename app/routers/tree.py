@@ -14,7 +14,8 @@ async def get_tree_route(
     if not can_read(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
     data = await get_tree(chartId)
-    # Output correct format {"nodes": [...], "links": [...]}
+    # Output format: {"nodes": [...], "links": [...]}
+    # links contains PARENT_OF (1 per child) and SPOUSE_OF
     return data
 
 @router.get("/published", response_model=TreeOut)

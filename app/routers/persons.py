@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
-from app.models.person_model import PersonCreate, PersonCreateWithParent, PersonCreateWithSpouse, PersonUpdate, PersonOut
+from app.models.person_model import PersonCreate, PersonCreateWithParent, PersonCreateWithSpouse, PersonUpdate, PersonOut, PersonDetailOut
 from app.utils.deps import get_current_user, get_chart_or_404, can_write, can_read
-from app.services.person_service import create_person, update_person, delete_person
-from app.services.relationship_service import add_parent_of, add_spouse_of
-from app.db.neo4j import neo4j
+from app.services.person_service import create_person, update_person, delete_person, get_person_detail, list_persons as list_persons_service
+from app.services.relationship_service import add_father_of, add_mother_of, add_spouse_of, check_spouse_couple
 
 router = APIRouter(prefix="/api/v1/charts/{chartId}/persons", tags=["Persons"])
 
@@ -22,11 +21,34 @@ async def add_child_person_route(chartId: str, body: PersonCreateWithParent, use
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    # If both fatherId and motherId provided, validate they are a SPOUSE_OF couple
+    if body.fatherId is not None and body.motherId is not None:
+        is_couple = await check_spouse_couple(chartId, body.fatherId, body.motherId)
+        if not is_couple:
+            raise HTTPException(
+                status_code=400,
+                detail="Father and mother must be a married couple (SPOUSE_OF relationship required)"
+            )
+
+    # Create the child person
     node = await create_person(
-        chartId, chart["ownerId"], body.name, body.gender, body.level, 
+        chartId, chart["ownerId"], body.name, body.gender, body.level,
         body.dob, body.dod, body.description, body.photoUrl
     )
-    await add_parent_of(chartId, body.parentId, node["personId"], body.childOrder)
+
+    try:
+        # Create FATHER_OF relationship if fatherId provided
+        if body.fatherId is not None:
+            await add_father_of(chartId, body.fatherId, node["personId"], body.childOrder)
+
+        # Create MOTHER_OF relationship if motherId provided
+        if body.motherId is not None:
+            await add_mother_of(chartId, body.motherId, node["personId"], body.childOrder)
+    except HTTPException:
+        # Rollback: delete the orphan person node
+        await delete_person(chartId, node["personId"])
+        raise
+
     return node
 
 @router.post("/add-spouse", response_model=PersonOut)
@@ -36,51 +58,34 @@ async def add_spouse_person_route(chartId: str, body: PersonCreateWithSpouse, us
         raise HTTPException(status_code=403, detail="Forbidden")
 
     node = await create_person(
-        chartId, chart["ownerId"], body.name, body.gender, body.level, 
+        chartId, chart["ownerId"], body.name, body.gender, body.level,
         body.dob, body.dod, body.description, body.photoUrl
     )
-    await add_spouse_of(chartId, body.spouseId, node["personId"], body.order)
+
+    try:
+        await add_spouse_of(chartId, body.spouseId, node["personId"], body.spouseOrder)
+    except HTTPException:
+        # Rollback: delete the orphan person node
+        await delete_person(chartId, node["personId"])
+        raise
+
     return node
 
-@router.get("")
-async def list_persons(chartId: str, q: Optional[str] = Query(None), gender: Optional[str] = None, level: Optional[int] = None,
-                       user=Depends(get_current_user)):
+@router.get("/{personId}", response_model=PersonDetailOut)
+async def get_person_detail_route(chartId: str, personId: int, user=Depends(get_current_user)):
     chart = await get_chart_or_404(chartId)
-    # Check read permissions only owner/editors or published
     if not can_read(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
-    where = "n.chartId = $cid"
-    params = {"cid": chartId}
-    if q:
-        where += " AND toLower(n.name) CONTAINS toLower($q)"
-        params["q"] = q
-    if gender:
-        where += " AND n.gender = $g"
-        params["g"] = gender
-    if level is not None:
-        where += " AND n.level = $lvl"
-        params["lvl"] = level
+    detail = await get_person_detail(chartId, personId)
+    return detail
 
-    async with neo4j.driver.session() as session:
-        res = await session.run(
-            f"""MATCH (n:Person) WHERE {where} 
-            RETURN {{
-                personId: n.personId,
-                ownerId: n.ownerId,
-                chartId: n.chartId,
-                name: n.name,
-                gender: n.gender,
-                level: n.level,
-                dob: toString(n.dob),
-                dod: toString(n.dod),
-                description: n.description,
-                photoUrl: n.photoUrl
-            }} AS n 
-            ORDER BY n.level ASC, n.name ASC""", 
-            **params
-        )
-        records = await res.data()
-        nodes = [r["n"] for r in records]
+@router.get("")
+async def list_persons_route(chartId: str, q: Optional[str] = Query(None), gender: Optional[str] = None, level: Optional[int] = None,
+                             user=Depends(get_current_user)):
+    chart = await get_chart_or_404(chartId)
+    if not can_read(chart, user["_id"]):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    nodes = await list_persons_service(chartId, q=q, gender=gender, level=level)
     return {"data": nodes}
 
 @router.patch("/{personId}", response_model=PersonOut)
