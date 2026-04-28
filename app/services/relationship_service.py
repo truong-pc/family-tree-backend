@@ -174,7 +174,7 @@ async def add_spouse_of(chart_id: str, person1_id: int, person2_id: int, spouse_
 async def remove_spouse_of(chart_id: str, person1_id: int, person2_id: int):
     async with neo4j.driver.session() as session:
         await session.run("""
-            MATCH (p1:Person {personId:$p1Id, chartId:$cid})-[r:SPOUSE_OF]->(p2:Person {personId:$p2Id, chartId:$cid})
+            MATCH (p1:Person {personId:$p1Id, chartId:$cid})-[r:SPOUSE_OF]-(p2:Person {personId:$p2Id, chartId:$cid})
             DELETE r
         """, p1Id=person1_id, p2Id=person2_id, cid=chart_id)
     return True

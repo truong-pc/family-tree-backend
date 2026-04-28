@@ -140,7 +140,7 @@ async def get_person_detail(chartId: str, personId: int):
                     personId: parent.personId,
                     name: parent.name,
                     gender: parent.gender,
-                    relationship: type(rp)
+                    birthOrder: rp.childOrder
                 } END
             ) AS parents
 
@@ -151,7 +151,7 @@ async def get_person_detail(chartId: str, personId: int):
                     personId: spouse.personId,
                     name: spouse.name,
                     gender: spouse.gender,
-                    relationship: "SPOUSE_OF"
+                    spouseOrder: rs.spouseOrder
                 } END
             ) AS spouses
 
@@ -162,7 +162,7 @@ async def get_person_detail(chartId: str, personId: int):
                     personId: child.personId,
                     name: child.name,
                     gender: child.gender,
-                    relationship: type(rc)
+                    childOrder: rc.childOrder
                 } END
             ) AS children
 

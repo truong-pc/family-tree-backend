@@ -74,16 +74,28 @@ class SpouseOfIn(BaseModel):
 
 # --- Person Detail response models ---
 
-class RelatedPersonOut(BaseModel):
+class ParentOfNodeOut(BaseModel):
     personId: int
     name: str
     gender: Gender
-    relationship: Optional[str] = None  # e.g. "FATHER_OF", "MOTHER_OF"
+    birthOrder: Optional[int] = None
 
+class SpouseOfNodeOut(BaseModel):
+    personId: int
+    name: str
+    gender: Gender
+    spouseOrder: Optional[int] = None
+
+class ChildOfNodeOut(BaseModel):
+    personId: int
+    name: str
+    gender: Gender
+    childOrder: Optional[int] = None
+    
 class PersonDetailOut(PersonOut):
-    parents: List[RelatedPersonOut] = []
-    spouses: List[RelatedPersonOut] = []
-    children: List[RelatedPersonOut] = []
+    parents: List[ParentOfNodeOut] = []
+    spouses: List[SpouseOfNodeOut] = []
+    children: List[ChildOfNodeOut] = []
 
 
 # --- Tree response model ---
