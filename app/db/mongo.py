@@ -18,6 +18,9 @@ async def connect_to_mongo():
     await db.sessions.create_index("expiresAt", expireAfterSeconds=0)
     # Password reset tokens - index by email (unique)
     await db.password_reset_tokens.create_index("email", unique=True)
+    # Events - index by chartId (family-wide custom events)
+    await db.events.create_index("chartId")
+    await db.events.create_index([("chartId", 1), ("month", 1), ("day", 1)])
     return mongo.client
 
 async def close_mongo():
