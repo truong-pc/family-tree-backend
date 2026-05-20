@@ -815,7 +815,7 @@ class VanSu:
 # Quy ước:
 # - Lunar.getMonth() trả về giá trị âm (vd: -6) nếu là tháng nhuận, dương nếu
 #   không nhuận – giống lunar-python.
-# - Lunar.fromYmd(year, signed_month, day): signed_month < 0 nghĩa là tháng nhuận.
+# - Lunar.fromYmd(year, month, day, is_leap=False): truyền cờ is_leap riêng.
 # ===========================================================================
 
 
@@ -879,18 +879,15 @@ class Lunar:
         self._is_leap = is_leap
 
     @staticmethod
-    def fromYmd(year: int, signed_month: int, day: int) -> "Lunar":
-        """Khởi tạo từ (year, signed_month, day).
+    def fromYmd(year: int, month: int, day: int, is_leap: bool = False) -> "Lunar":
+        """Khởi tạo từ (year, month, day, is_leap).
 
-        Quy ước signed_month < 0 nghĩa là tháng nhuận (giống lunar-python).
+        `is_leap=True` nghĩa là tháng nhuận của năm âm lịch.
         """
-        is_leap = signed_month < 0
-        month = abs(signed_month)
         if not (1 <= month <= 12):
-            raise ValueError(f"Invalid lunar month: {signed_month}")
+            raise ValueError(f"Invalid lunar month: {month}")
         if not (1 <= day <= 30):
             raise ValueError(f"Invalid lunar day: {day}")
-        # Kiểm tra tháng nhuận hợp lệ với năm
         if is_leap:
             leap = LunarYear.fromYear(year).getLeapMonth()
             if leap != month:

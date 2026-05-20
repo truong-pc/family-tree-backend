@@ -93,25 +93,16 @@ def solar_to_lunar(dod: Optional[date]) -> Optional[dict]:
     Convert a solar (Gregorian) date of death to lunar calendar fields.
     Returns dict with lunarDeathDay, lunarDeathMonth, lunarDeathYear, lunarIsLeap
     or None if dod is None.
-
-    In lunar-python, getMonth() returns a negative value for leap months.
-    E.g. -6 means leap month 6. We extract the absolute month and set lunarIsLeap=True.
     """
     if dod is None:
         return None
 
-    solar = Solar.fromYmd(dod.year, dod.month, dod.day)
-    lunar = solar.getLunar()
-
-    raw_month = lunar.getMonth()
-    is_leap = raw_month < 0
-    month = abs(raw_month)
-
+    lunar = Solar.fromYmd(dod.year, dod.month, dod.day).getLunar()
     return {
         "lunarDeathDay": lunar.getDay(),
-        "lunarDeathMonth": month,
+        "lunarDeathMonth": abs(lunar.getMonth()),
         "lunarDeathYear": lunar.getYear(),
-        "lunarIsLeap": is_leap,
+        "lunarIsLeap": lunar.isLeap(),
     }
 
 
@@ -128,17 +119,10 @@ def lunar_to_solar(year: int, month: int, day: int, is_leap: bool = False) -> da
     Raises ValueError if the lunar date does not exist (e.g. day out of range,
     or is_leap=True but the year has no matching leap month).
     """
-    if is_leap:
-        if get_leap_month(year) != month:
-            raise ValueError(
-                f"Lunar year {year} has no leap month {month}"
-            )
-        signed_month = -month
-    else:
-        signed_month = month
+    if is_leap and get_leap_month(year) != month:
+        raise ValueError(f"Lunar year {year} has no leap month {month}")
     try:
-        lunar = Lunar.fromYmd(year, signed_month, day)
+        solar = Lunar.fromYmd(year, month, day, is_leap).getSolar()
     except Exception as e:
         raise ValueError(str(e)) from e
-    solar = lunar.getSolar()
     return date(solar.getYear(), solar.getMonth(), solar.getDay())
