@@ -4,8 +4,7 @@ from datetime import datetime
 
 class UserCreate(BaseModel):
     email: EmailStr
-    # bcrypt only evaluates the first 72 bytes; enforce a safe max length = Field(..., min_length=6, max_length=72)
-    password: str
+    password: str = Field(..., min_length=6, max_length=128)
     fullName: str
     phone: Optional[str] = None
     dob: Optional[str] = None

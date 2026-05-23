@@ -1,9 +1,9 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 class LoginIn(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=6, max_length=128)
 
 class TokenOut(BaseModel):
     accessToken: str
@@ -19,8 +19,8 @@ class SessionOut(BaseModel):
     ip: Optional[str] = None
 
 class ChangePasswordIn(BaseModel):
-    oldPassword: str
-    newPassword: str
+    oldPassword: str = Field(..., min_length=6, max_length=128)
+    newPassword: str = Field(..., min_length=6, max_length=128)
 
 # Forgot Password / Reset Password models
 class ForgotPasswordIn(BaseModel):
@@ -28,5 +28,5 @@ class ForgotPasswordIn(BaseModel):
 
 class ResetPasswordIn(BaseModel):
     email: EmailStr
-    otp: str
-    newPassword: str
+    otp: str = Field(..., min_length=6, max_length=128)
+    newPassword: str = Field(..., min_length=6, max_length=128)
