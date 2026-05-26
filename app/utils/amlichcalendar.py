@@ -183,6 +183,8 @@ class SolarAndLunar:
     def convertLunar2Solar(lunarYear, lunarMonth, lunarDay, lunarLeap, timeZone=7.0):
         """Đổi ngày âm sang dương, trả về (year, month, day).
         Trả về (0, 0, 0) nếu ngày âm không hợp lệ."""
+        if not (1 <= lunarDay <= 30):
+            return (0, 0, 0)
         if lunarMonth < 11:
             a11 = SolarAndLunar.getLunarMonth11(lunarYear - 1, timeZone)
             b11 = SolarAndLunar.getLunarMonth11(lunarYear, timeZone)
@@ -201,8 +203,15 @@ class SolarAndLunar:
                 return (0, 0, 0)
             elif lunarLeap != 0 or off >= leapOff:
                 off += 1
+        elif lunarLeap != 0:
+            # Năm này không có tháng nhuận mà input lại đánh dấu is_leap
+            return (0, 0, 0)
         k = int(0.5 + (a11 - 2415021.076998695) / 29.530588853)
         monthStart = SolarAndLunar.getNewMoonDay(k + off, timeZone)
+        # Độ dài tháng âm này = JDN mùng 1 tháng kế − JDN mùng 1 tháng này (29 hoặc 30)
+        nextMonthStart = SolarAndLunar.getNewMoonDay(k + off + 1, timeZone)
+        if lunarDay > nextMonthStart - monthStart:
+            return (0, 0, 0)
         return Date.convertjdn2Date(monthStart + lunarDay - 1)
 
 

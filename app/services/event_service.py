@@ -199,13 +199,22 @@ def _solar_candidate(year: int, month: int, day: int) -> Optional[date]:
 
 def _lunar_candidate(lunar_year: int, month: int, day: int, is_leap: bool) -> Optional[date]:
     """Convert a yearly lunar anchor to a solar date.
-    Fallback rule: if is_leap=True but the year lacks that leap month, use the regular month.
-    Returns None when the lunar date does not exist that year (e.g. day 30 in 29-day month)."""
-    try:
+    Fallback rules:
+    - if is_leap=True but the year lacks that leap month, use the regular month.
+    - if day=30 but the month only has 29 days, notify on day 29 instead."""
+    def _convert(d: int) -> date:
         if is_leap and get_leap_month(lunar_year) != month:
-            return lunar_to_solar(lunar_year, month, day, False)
-        return lunar_to_solar(lunar_year, month, day, is_leap)
+            return lunar_to_solar(lunar_year, month, d, False)
+        return lunar_to_solar(lunar_year, month, d, is_leap)
+
+    try:
+        return _convert(day)
     except ValueError:
+        if day == 30:
+            try:
+                return _convert(29)
+            except ValueError:
+                return None
         return None
 
 
@@ -240,9 +249,18 @@ def _expand(ev: dict, today: date, end: date) -> Optional[dict]:
 
 
 async def list_upcoming(chartId: str, days: int) -> list[dict]:
-    today = date.today()
-    end = today + timedelta(days=days)
-    master = await list_master(chartId)
+    today = date.today()               # ngày hiện tại làm mốc bắt đầu cửa sổ
+    end = today + timedelta(days=days) # ngày kết thúc cửa sổ tìm kiếm
+
+    master = await list_master(chartId)  # lấy toàn bộ sự kiện gốc (chưa tính ngày xuất hiện cụ thể)
+
+    # Với mỗi sự kiện ev trong master, gọi _expand() để tính ngày xuất hiện gần nhất
+    # trong khoảng [today, end].  _expand() trả về dict có "occurrenceDate" nếu sự kiện
+    # rơi vào cửa sổ đó, hoặc None nếu không.  Walrus operator (:=) vừa lưu kết quả vào
+    # biến `out` vừa dùng giá trị đó làm điều kiện lọc — chỉ giữ lại những phần tử
+    # mà _expand() trả về khác None, tức là sự kiện thực sự xuất hiện trong khoảng thời gian.
     expanded = [out for ev in master if (out := _expand(ev, today, end))]
+
+    # sắp xếp theo ngày xuất hiện; nếu cùng ngày thì theo tên sự kiện (A→Z)
     expanded.sort(key=lambda e: (e["occurrenceDate"], e["title"]))
     return expanded

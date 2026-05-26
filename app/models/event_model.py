@@ -21,7 +21,7 @@ def _validate_date_combo(year: int, month: int, day: int, calendar: str, is_leap
 class EventCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=2000)
-    day: int = Field(ge=1, le=30)
+    day: int = Field(ge=1, le=31)
     month: int = Field(ge=1, le=12)
     year: int = Field(ge=1900, le=2200)
     calendar: Calendar
@@ -37,7 +37,7 @@ class EventCreate(BaseModel):
 class EventUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     description: Optional[str] = Field(default=None, max_length=2000)
-    day: Optional[int] = Field(default=None, ge=1, le=30)
+    day: Optional[int] = Field(default=None, ge=1, le=31)
     month: Optional[int] = Field(default=None, ge=1, le=12)
     year: Optional[int] = Field(default=None, ge=1900, le=2200)
     calendar: Optional[Calendar] = None
