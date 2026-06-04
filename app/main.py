@@ -20,8 +20,8 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan, docs_url="/")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=settings.CORS_ORIGINS,
-    allow_origins=["*"],# For development only
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.APP_CORS_ORIGIN_REGEX or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
