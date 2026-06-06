@@ -19,10 +19,10 @@ async def get_today_info():
 
 @router.get("/info")
 async def get_date_info(day: int, month: int, year: int):
-    # try:
-    #     target = date(year, month, day)
-    # except ValueError as e:
-    #     raise HTTPException(status_code=400, detail=f"Ngày dương lịch không hợp lệ: {e}")
+    try:
+        date(year, month, day)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Ngày dương lịch không hợp lệ: {e}")
     try:
         raw = VanSu.getInfo(year, month, day, "s")
         info = parse_van_su_info(raw)

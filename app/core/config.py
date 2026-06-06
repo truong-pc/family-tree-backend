@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "info"
 
     APP_CORS_ORIGINS: str = "http://localhost:3000"
-    # Regex cho phép khớp origin theo mẫu (vd các domain preview của Vercel)
     APP_CORS_ORIGIN_REGEX: str = ""
     @property
     def CORS_ORIGINS(self) -> List[str]:

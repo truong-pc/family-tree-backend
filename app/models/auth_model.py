@@ -3,7 +3,7 @@ from typing import Optional
 
 class LoginIn(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=6, max_length=72)
 
 class TokenOut(BaseModel):
     accessToken: str
@@ -19,8 +19,8 @@ class SessionOut(BaseModel):
     ip: Optional[str] = None
 
 class ChangePasswordIn(BaseModel):
-    oldPassword: str = Field(..., min_length=6, max_length=128)
-    newPassword: str = Field(..., min_length=6, max_length=128)
+    oldPassword: str = Field(..., min_length=6, max_length=72)
+    newPassword: str = Field(..., min_length=6, max_length=72)
 
 # Forgot Password / Reset Password models
 class ForgotPasswordIn(BaseModel):
@@ -29,4 +29,4 @@ class ForgotPasswordIn(BaseModel):
 class ResetPasswordIn(BaseModel):
     email: EmailStr
     otp: str = Field(..., min_length=6, max_length=128)
-    newPassword: str = Field(..., min_length=6, max_length=128)
+    newPassword: str = Field(..., min_length=6, max_length=72)
