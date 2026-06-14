@@ -1,21 +1,10 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from datetime import date, datetime
 
 Calendar = Literal["solar", "lunar"]
 Repeat = Literal["once", "yearly"]
 EventType = Literal["birthday", "death", "custom"]
-
-
-def _validate_date_combo(year: int, month: int, day: int, calendar: str, is_leap: bool):
-    """Validate that (year, month, day, calendar, isLeap) is a real calendar date."""
-    if calendar == "solar":
-        if is_leap:
-            raise ValueError("isLeapMonth chỉ áp dụng cho lịch âm")
-        date(year, month, day)
-    else:
-        from app.utils.lunar_converter import lunar_to_solar
-        lunar_to_solar(year, month, day, is_leap)
 
 
 class EventCreate(BaseModel):
@@ -27,11 +16,6 @@ class EventCreate(BaseModel):
     calendar: Calendar
     repeat: Repeat
     isLeapMonth: bool = False
-
-    @model_validator(mode="after")
-    def check_date(self):
-        _validate_date_combo(self.year, self.month, self.day, self.calendar, self.isLeapMonth)
-        return self
 
 
 class EventUpdate(BaseModel):

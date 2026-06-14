@@ -7,8 +7,18 @@ from app.utils.amlichcalendar import Solar
 from app.core.config import settings
 from app.db.mongo import mongo
 from app.db.neo4j import neo4j
-from app.models.event_model import EventCreate, _validate_date_combo
+from app.models.event_model import EventCreate
 from app.utils.lunar_converter import lunar_to_solar, get_leap_month
+
+
+def _validate_date_combo(year: int, month: int, day: int, calendar: str, is_leap: bool):
+    """Validate that (year, month, day, calendar, isLeap) is a real calendar date."""
+    if calendar == "solar":
+        if is_leap:
+            raise ValueError("isLeapMonth chỉ áp dụng cho lịch âm")
+        date(year, month, day)
+    else:
+        lunar_to_solar(year, month, day, is_leap)
 
 
 def _events_coll():
@@ -43,6 +53,13 @@ def _parse_object_id(eventId: str) -> ObjectId:
 # --- CRUD custom event ---
 
 async def create_event(chartId: str, createdBy: str, body: EventCreate) -> dict:
+    try:
+        _validate_date_combo(
+            body.year, body.month, body.day, body.calendar, body.isLeapMonth,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     now = datetime.now(timezone.utc)
     doc = {
         "chartId": chartId,
