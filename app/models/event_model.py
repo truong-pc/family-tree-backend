@@ -11,7 +11,7 @@ def _validate_date_combo(year: int, month: int, day: int, calendar: str, is_leap
     """Validate that (year, month, day, calendar, isLeap) is a real calendar date."""
     if calendar == "solar":
         if is_leap:
-            raise ValueError("isLeapMonth chỉ áp dụng cho lịch âm")
+            raise ValueError("isLeapMonth only applies to lunar calendar")
         date(year, month, day)
     else:
         from app.utils.lunar_converter import lunar_to_solar
