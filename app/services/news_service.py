@@ -137,6 +137,19 @@ async def list_public_feed(
     return {"items": [_doc_to_card(d) for d in docs], "nextCursor": next_cursor}
 
 
+async def list_public_tags() -> list[dict]:
+    """Return the distinct tags used across public posts, each with the number of public
+    posts carrying it. Sorted by count desc, then tag asc."""
+    pipeline = [
+        {"$match": {"public": True}},
+        {"$unwind": "$tags"},
+        {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": 1}},
+    ]
+    docs = await _news_coll().aggregate(pipeline).to_list(length=1000)
+    return [{"tag": d["_id"], "count": d["count"]} for d in docs]
+
+
 async def get_public_post(postId: str) -> dict:
     """Fetch a single public post by ID. Returns HTTP 404 if the post doesn't exist or is private."""
     oid = _parse_object_id(postId)

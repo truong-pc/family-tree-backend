@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 
-from app.models.news_model import NewsCreate, NewsUpdate, NewsOut, NewsCardOut, NewsFeedOut
+from app.models.news_model import NewsCreate, NewsUpdate, NewsOut, NewsCardOut, NewsFeedOut, NewsTagOut
 from app.utils.deps import get_current_user, get_chart_or_404, can_write, can_modify_news
 from app.services.news_service import (
-    list_public_feed, get_public_post,
+    list_public_feed, list_public_tags, get_public_post,
     list_chart_news, create_news, get_chart_post, get_post_raw,
     update_news, delete_news,
 )
@@ -22,6 +22,11 @@ async def public_feed_route(
     tag: Optional[str] = None,
 ):
     return await list_public_feed(limit, cursor, chartId, tag)
+
+
+@router.get("/news/tags", response_model=list[NewsTagOut])
+async def public_tags_route():
+    return await list_public_tags()
 
 
 @router.get("/news/{postId}", response_model=NewsOut)

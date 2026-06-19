@@ -71,3 +71,9 @@ class NewsCardOut(BaseModel):
 class NewsFeedOut(BaseModel):
     items: list[NewsCardOut]
     nextCursor: Optional[str] = None
+
+
+class NewsTagOut(BaseModel):
+    """A single tag plus how many public posts carry it (for tag clouds / filter chips)."""
+    tag: str
+    count: int
