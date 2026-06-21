@@ -46,8 +46,8 @@ def is_cloudinary_url(url: str) -> bool:
     if not url:
         return False
     parsed = urlparse(url)
-    host = (parsed.netloc or "").lower()
-    if "cloudinary.com" not in host:
+    host = (parsed.hostname or "").lower()
+    if host != "res.cloudinary.com":
         return False
     cloud = settings.CLOUDINARY_CLOUD_NAME
     return not cloud or f"/{cloud}/" in parsed.path

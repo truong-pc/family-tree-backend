@@ -68,15 +68,16 @@ def extract_content_image_urls(html: str) -> list[str]:
     return urls
 
 
-async def _cleanup_draft_orphans(draft_photo_urls, kept_urls) -> None:
-    """Delete Cloudinary images that were uploaded while drafting but didn't make it into the saved
-    post. `kept_urls` are the URLs the post actually references (body images + cover); any draft URL
-    not among them is an orphan and is removed from Cloudinary. Best-effort via delete_images, which
-    ignores non-Cloudinary/unparseable URLs and never raises, so saving the post always succeeds."""
-    if not draft_photo_urls:
+async def _cleanup_draft_orphans(candidate_urls, kept_urls) -> None:
+    """Delete Cloudinary images that the saved post no longer references. `candidate_urls` are
+    images that might be orphaned — leftover draft uploads and/or body images removed during an
+    edit; `kept_urls` are the URLs the post actually references (body images + cover). Any candidate
+    not among the kept URLs is removed from Cloudinary. Best-effort via delete_images, which ignores
+    non-Cloudinary/unparseable URLs and never raises, so saving the post always succeeds."""
+    if not candidate_urls:
         return
     kept = {u for u in kept_urls if u}
-    orphans = [u for u in draft_photo_urls if u and u not in kept]
+    orphans = [u for u in candidate_urls if u and u not in kept]
     if orphans:
         await delete_images(orphans)
 
@@ -298,10 +299,18 @@ async def update_news(chartId: str, postId: str, patch: dict) -> dict:
     draft_photo_urls = update_doc.pop("draftPhotoUrls", None)
     if update_doc.get("title") is not None:
         update_doc["title"] = update_doc["title"].strip()
+    # Body images the user removed during this edit. draftPhotoUrls only covers freshly
+    # uploaded images; an image that was already in the saved post and got deleted from the
+    # new contentHtml would otherwise be orphaned on Cloudinary, so track it for cleanup too.
+    removed_body_images: list[str] = []
     if update_doc.get("contentHtml") is not None:
         update_doc["contentHtml"] = sanitize_html(update_doc["contentHtml"])
         # Recompute the stored Cloudinary image list whenever the body changes.
-        update_doc["contentImageUrls"] = extract_content_image_urls(update_doc["contentHtml"])
+        new_image_urls = extract_content_image_urls(update_doc["contentHtml"])
+        update_doc["contentImageUrls"] = new_image_urls
+        removed_body_images = [
+            u for u in (existing.get("contentImageUrls") or []) if u not in new_image_urls
+        ]
 
     # publishedAt is stamped the very first time a post goes public.
     # It is intentionally never cleared — even if the post is later set back to private —
@@ -314,10 +323,13 @@ async def update_news(chartId: str, postId: str, patch: dict) -> dict:
     await _news_coll().update_one({"_id": oid}, {"$set": update_doc})
     doc = await _news_coll().find_one({"_id": oid})
 
-    # Clean up draft images that aren't referenced by the saved post (body images + cover).
+    # Clean up images that aren't referenced by the saved post (body images + cover): both
+    # leftover draft uploads and body images removed in this edit. Anything still referenced
+    # (e.g. a removed body image that is also the cover) is kept by the kept_urls guard.
     kept_urls = list(doc.get("contentImageUrls") or [])
     kept_urls.append(doc.get("coverImageUrl"))
-    await _cleanup_draft_orphans(draft_photo_urls, kept_urls)
+    candidate_orphans = list(draft_photo_urls or []) + removed_body_images
+    await _cleanup_draft_orphans(candidate_orphans, kept_urls)
 
     return _doc_to_out(doc)
 
