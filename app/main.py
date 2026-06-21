@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.db.mongo import connect_to_mongo, close_mongo
 from app.db.neo4j import connect_to_neo4j, close_neo4j
-from app.routers import auth, charts, persons, relationships, tree, events, calendar
+from app.routers import auth, charts, persons, relationships, tree, events, calendar, news
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +35,7 @@ app.include_router(relationships.router)
 app.include_router(tree.router)
 app.include_router(events.router)
 app.include_router(calendar.router)
+app.include_router(news.router)
 
 @app.get("/healthz")
 async def healthz():

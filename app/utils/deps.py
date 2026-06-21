@@ -42,3 +42,9 @@ def can_write(chart, user_id: str):
 
 def is_owner(chart, user_id: str):
     return user_id == chart["ownerId"]
+
+def can_modify_news(chart, post, user_id: str):
+    """Owner sửa/xoá mọi bài; editor chỉ sửa/xoá bài của chính mình."""
+    if is_owner(chart, user_id):
+        return True
+    return (user_id in chart.get("editors", [])) and (post.get("authorId") == user_id)

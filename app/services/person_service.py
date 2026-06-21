@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from app.db.neo4j import neo4j
 from datetime import date
 from app.utils.lunar_converter import solar_to_lunar
+from app.utils.cloudinary_helper import delete_images
 try:  # neo4j driver date type
     from neo4j.time import Date as Neo4jDate  # type: ignore
 except Exception:  # pragma: no cover
@@ -105,27 +106,42 @@ async def update_person(chartId: str, personId: int, patch: dict):
 
     setters = ", ".join([f"n.{k} = ${k}" for k in patch.keys()])
     async with neo4j.driver.session() as session:
+        # Capture the old photoUrl before SET so we can clean up Cloudinary if it changes.
         res = await session.run(f"""
             MATCH (n:Person {{personId:$pid, chartId:$cid}})
+            WITH n, n.photoUrl AS oldPhoto
             SET {setters}
-            RETURN n
+            RETURN n, oldPhoto
         """, pid=personId, cid=chartId, **patch)
         rec = await res.single()
         if not rec:
             raise HTTPException(status_code=404, detail="Person not found")
-        return _node_to_dict(rec["n"])
+        person = _node_to_dict(rec["n"])
+
+    # If the avatar was replaced or removed, delete the previous Cloudinary image (best-effort).
+    if "photoUrl" in patch:
+        old_photo = rec["oldPhoto"]
+        if old_photo and old_photo != patch.get("photoUrl"):
+            await delete_images([old_photo])
+    return person
 
 async def delete_person(chartId: str, personId: int):
     async with neo4j.driver.session() as session:
+        # Grab the avatar URL before deleting so we can clean it up from Cloudinary afterwards.
         res = await session.run("""
             MATCH (n:Person {personId:$pid, chartId:$cid})
+            WITH n, n.photoUrl AS photo
             DETACH DELETE n
-            RETURN count(*) as c
+            RETURN photo
         """, pid=personId, cid=chartId)
-        c = (await res.single())["c"]
-        if c == 0:
+        rec = await res.single()
+        if not rec:
             raise HTTPException(status_code=404, detail="Person not found")
-        return True
+        photo = rec["photo"]
+
+    if photo:
+        await delete_images([photo])  # best-effort — node is already gone
+    return True
 
 async def get_person_detail(chartId: str, personId: int):
     """Get person details including all relationships (parents, spouses, children)."""

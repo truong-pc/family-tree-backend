@@ -21,6 +21,10 @@ async def connect_to_mongo():
     # Events - index by chartId (family-wide custom events)
     await db.events.create_index("chartId")
     await db.events.create_index([("chartId", 1), ("month", 1), ("day", 1)])
+    # News - public feed (cursor theo publishedAt, _id) + quản lý theo chart
+    await db.news.create_index([("public", 1), ("publishedAt", -1), ("_id", -1)])
+    await db.news.create_index([("chartId", 1), ("createdAt", -1)])
+    await db.news.create_index("tags")
     return mongo.client
 
 async def close_mongo():
