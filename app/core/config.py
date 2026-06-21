@@ -39,4 +39,10 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
 
+    # Cloudinary — used to delete images
+    # Left empty in dev: deletion is skipped with a logged warning instead of failing.
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+
 settings = Settings()

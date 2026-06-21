@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from typing import Optional
 from bson import ObjectId
 from fastapi import HTTPException
@@ -7,6 +8,7 @@ import nh3
 from app.core.config import settings
 from app.db.mongo import mongo
 from app.models.news_model import NewsCreate
+from app.utils.cloudinary_helper import delete_images, is_cloudinary_url
 
 
 def _news_coll():
@@ -22,8 +24,61 @@ def _now():
 def sanitize_html(html: str) -> str:
     """Strip dangerous markup (script tags, on* event handlers, javascript: URLs) from
     editor-generated HTML while preserving safe rich-text elements. Cloudinary images
-    (<img src="https://...">) are kept because https is an allowed scheme by default in nh3."""
-    return nh3.clean(html)
+    (<img src="https://...">) are kept because https is an allowed scheme by default in nh3.
+
+    Note: passing `attributes` REPLACES nh3's default allow-list entirely (it does not merge), so
+    img sizing attributes (width/height) that nh3 normally allows must be listed explicitly here,
+    otherwise they get stripped on save."""
+    return nh3.clean(
+        html,
+        attributes={
+            "*": {"class", "id", "style", "title", "alt"},
+            # nh3 auto-adds rel="noopener noreferrer" to links via its default link_rel setting,
+            # so target="_blank" links are safe against reverse tabnabbing without listing "rel".
+            "a": {"href", "target"},
+            "img": {"src", "width", "height"},
+        },
+    )
+
+
+class _ImgSrcCollector(HTMLParser):
+    """Collect every <img src> value while parsing an HTML fragment."""
+
+    def __init__(self):
+        super().__init__()
+        self.srcs: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "img":
+            for key, value in attrs:
+                if key == "src" and value:
+                    self.srcs.append(value)
+
+
+def extract_content_image_urls(html: str) -> list[str]:
+    """Collect the Cloudinary <img src> URLs embedded in (already sanitized) news HTML, deduped
+    in document order. Stored alongside the post so deletion can clean up Cloudinary without
+    re-parsing the HTML. Non-Cloudinary images are ignored — we only delete assets we own."""
+    collector = _ImgSrcCollector()
+    collector.feed(html)
+    urls: list[str] = []
+    for src in collector.srcs:
+        if is_cloudinary_url(src) and src not in urls:
+            urls.append(src)
+    return urls
+
+
+async def _cleanup_draft_orphans(draft_photo_urls, kept_urls) -> None:
+    """Delete Cloudinary images that were uploaded while drafting but didn't make it into the saved
+    post. `kept_urls` are the URLs the post actually references (body images + cover); any draft URL
+    not among them is an orphan and is removed from Cloudinary. Best-effort via delete_images, which
+    ignores non-Cloudinary/unparseable URLs and never raises, so saving the post always succeeds."""
+    if not draft_photo_urls:
+        return
+    kept = {u for u in kept_urls if u}
+    orphans = [u for u in draft_photo_urls if u and u not in kept]
+    if orphans:
+        await delete_images(orphans)
 
 
 def _parse_object_id(postId: str) -> ObjectId:
@@ -207,11 +262,14 @@ async def get_chart_post(chartId: str, postId: str) -> dict:
 async def create_news(chartId: str, authorId: str, body: NewsCreate) -> dict:
     """Insert a new news post. If the post is created as public, publishedAt is set immediately."""
     now = _now()
+    content_html = sanitize_html(body.contentHtml)
+    content_image_urls = extract_content_image_urls(content_html)
     doc = {
         "chartId": chartId,
         "authorId": authorId,
         "title": body.title.strip(),
-        "contentHtml": sanitize_html(body.contentHtml),
+        "contentHtml": content_html,
+        "contentImageUrls": content_image_urls,
         "coverImageUrl": body.coverImageUrl,
         "tags": body.tags,
         "public": body.public,
@@ -221,6 +279,7 @@ async def create_news(chartId: str, authorId: str, body: NewsCreate) -> dict:
     }
     res = await _news_coll().insert_one(doc)
     doc["_id"] = res.inserted_id
+    await _cleanup_draft_orphans(body.draftPhotoUrls, content_image_urls + [body.coverImageUrl])
     return _doc_to_out(doc)
 
 
@@ -235,10 +294,14 @@ async def update_news(chartId: str, postId: str, patch: dict) -> dict:
         raise HTTPException(status_code=404, detail="News post not found")
 
     update_doc = dict(patch)
+    # draftPhotoUrls is a transient cleanup hint, not a stored field — pull it out before $set.
+    draft_photo_urls = update_doc.pop("draftPhotoUrls", None)
     if update_doc.get("title") is not None:
         update_doc["title"] = update_doc["title"].strip()
     if update_doc.get("contentHtml") is not None:
         update_doc["contentHtml"] = sanitize_html(update_doc["contentHtml"])
+        # Recompute the stored Cloudinary image list whenever the body changes.
+        update_doc["contentImageUrls"] = extract_content_image_urls(update_doc["contentHtml"])
 
     # publishedAt is stamped the very first time a post goes public.
     # It is intentionally never cleared — even if the post is later set back to private —
@@ -250,13 +313,28 @@ async def update_news(chartId: str, postId: str, patch: dict) -> dict:
     update_doc["updatedAt"] = _now()
     await _news_coll().update_one({"_id": oid}, {"$set": update_doc})
     doc = await _news_coll().find_one({"_id": oid})
+
+    # Clean up draft images that aren't referenced by the saved post (body images + cover).
+    kept_urls = list(doc.get("contentImageUrls") or [])
+    kept_urls.append(doc.get("coverImageUrl"))
+    await _cleanup_draft_orphans(draft_photo_urls, kept_urls)
+
     return _doc_to_out(doc)
 
 
 async def delete_news(chartId: str, postId: str) -> bool:
-    """Permanently delete a post. Returns HTTP 404 if the post doesn't exist in the given chart."""
+    """Permanently delete a post, first cleaning up its Cloudinary images (embedded body images
+    plus the cover image). Cloudinary cleanup is best-effort — failures are logged, not raised —
+    so the post is always removed from the database. Returns HTTP 404 if the post doesn't exist."""
     oid = _parse_object_id(postId)
-    res = await _news_coll().delete_one({"_id": oid, "chartId": chartId})
-    if res.deleted_count == 0:
+    doc = await _news_coll().find_one({"_id": oid, "chartId": chartId})
+    if not doc:
         raise HTTPException(status_code=404, detail="News post not found")
+
+    image_urls = list(doc.get("contentImageUrls") or [])
+    if doc.get("coverImageUrl"):
+        image_urls.append(doc["coverImageUrl"])
+    await delete_images(image_urls)
+
+    await _news_coll().delete_one({"_id": oid})
     return True

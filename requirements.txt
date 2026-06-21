@@ -13,3 +13,5 @@ email-validator==2.2.0
 dnspython==2.6.1
 # HTML sanitizer for news content (prevents stored XSS from HugeRTE)
 nh3==0.2.18
+# Cloudinary SDK — server-side deletion of images 
+cloudinary==1.44.1

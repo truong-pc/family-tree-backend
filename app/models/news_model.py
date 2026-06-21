@@ -24,6 +24,8 @@ class NewsCreate(BaseModel):
     coverImageUrl: Optional[str] = Field(default=None, max_length=2000)
     tags: list[str] = Field(default_factory=list, max_length=20)
     public: bool = False
+    # Every Cloudinary image uploaded while drafting (useful + junk).
+    draftPhotoUrls: list[str] = Field(default_factory=list, max_length=200)
 
     _clean_tags = field_validator("tags")(_normalize_tags)
 
@@ -34,6 +36,8 @@ class NewsUpdate(BaseModel):
     coverImageUrl: Optional[str] = Field(default=None, max_length=2000)
     tags: Optional[list[str]] = Field(default=None, max_length=20)
     public: Optional[bool] = None
+    # See NewsCreate.draftPhotoUrls — same purpose for edits (kept out of the stored patch).
+    draftPhotoUrls: list[str] = Field(default_factory=list, max_length=200)
 
     _clean_tags = field_validator("tags")(_normalize_tags)
 
