@@ -10,6 +10,9 @@ async def connect_to_neo4j():
     neo4j.driver = AsyncGraphDatabase.driver(
         settings.NEO4J_URI,
         auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
+        keep_alive=True,
+        max_connection_lifetime=300,
+        liveness_check_timeout=30,
     )
     async with neo4j.driver.session() as session:
         # Constraints: ensure composite uniqueness on (chartId, personId)
@@ -21,3 +24,4 @@ async def connect_to_neo4j():
 async def close_neo4j():
     if neo4j.driver:
         await neo4j.driver.close()
+        neo4j.driver = None
