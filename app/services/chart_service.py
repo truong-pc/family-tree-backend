@@ -5,6 +5,9 @@ from fastapi import HTTPException
 from app.db.mongo import mongo
 from app.core.config import settings
 from app.db.neo4j import neo4j
+from app.services.event_service import delete_events_by_chart
+from app.services.news_service import delete_news_by_chart
+from app.utils.cloudinary_helper import delete_images
 
 def now():
     from datetime import datetime, timezone
@@ -35,9 +38,21 @@ async def delete_chart_hard(chart_id: str, owner_id: str):
         raise HTTPException(status_code=404, detail="Chart not found")
     if chart["ownerId"] != owner_id:
         raise HTTPException(status_code=403, detail="Only owner can delete chart")
-    # Xoá toàn bộ nodes/edges trong Neo4j
+    # Delete all nodes/edges in Neo4j. Grab every person's avatar URL first so we can clean
+    # those up from Cloudinary afterwards.
     async with neo4j.driver.session() as session:
+        res = await session.run(
+            "MATCH (p:Person {chartId:$cid}) WHERE p.photoUrl IS NOT NULL RETURN p.photoUrl AS photo",
+            cid=chart_id,
+        )
+        photos = [rec["photo"] async for rec in res]
         await session.run("MATCH (p:Person {chartId:$cid}) DETACH DELETE p", cid=chart_id)
+        await session.run("MATCH (c:Counter {chartId:$cid}) DETACH DELETE c", cid=chart_id)
+    if photos:
+        await delete_images(photos)  
+    # Events and news both key off chartId; news also owns Cloudinary images.
+    await delete_events_by_chart(chart_id)
+    await delete_news_by_chart(chart_id)
     await CHARTS().delete_one({"_id": chart_id})
     return True
 

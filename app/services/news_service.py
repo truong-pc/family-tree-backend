@@ -350,3 +350,24 @@ async def delete_news(chartId: str, postId: str) -> bool:
 
     await _news_coll().delete_one({"_id": oid})
     return True
+
+
+async def delete_news_by_chart(chartId: str) -> int:
+    """Delete every news post belonging to a chart, cleaning up all their Cloudinary
+    images (embedded body images plus cover images) first. Cloudinary cleanup is
+    best-effort. Returns the number of posts deleted. Used when a chart is hard-deleted."""
+    image_urls: list[str] = []
+    cursor = _news_coll().find(
+        {"chartId": chartId},
+        {"contentImageUrls": 1, "coverImageUrl": 1},
+    )
+    async for doc in cursor:
+        image_urls.extend(doc.get("contentImageUrls") or [])
+        if doc.get("coverImageUrl"):
+            image_urls.append(doc["coverImageUrl"])
+
+    if image_urls:
+        await delete_images(image_urls)
+
+    res = await _news_coll().delete_many({"chartId": chartId})
+    return res.deleted_count

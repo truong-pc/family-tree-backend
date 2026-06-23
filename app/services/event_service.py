@@ -119,6 +119,13 @@ async def delete_event(chartId: str, eventId: str) -> bool:
     return True
 
 
+async def delete_events_by_chart(chartId: str) -> int:
+    """Delete every custom event belonging to a chart. Returns the number of events
+    deleted. Used when a chart is hard-deleted."""
+    res = await _events_coll().delete_many({"chartId": chartId})
+    return res.deleted_count
+
+
 async def list_custom(chartId: str) -> list[dict]:
     cursor = _events_coll().find({"chartId": chartId})
     return [_doc_to_out(doc) async for doc in cursor]
