@@ -93,7 +93,7 @@ async def update_person_route(chartId: str, personId: int, body: PersonUpdate, u
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
-    node = await update_person(chartId, personId, body.model_dump(exclude_none=True))
+    node = await update_person(chartId, personId, body.model_dump(exclude_unset=True))
     return node
 
 @router.delete("/{personId}")

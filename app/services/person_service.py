@@ -89,6 +89,10 @@ async def update_person(chartId: str, personId: int, patch: dict):
     patch.pop("personId", None)
     patch.pop("chartId", None)
 
+    for f in ("name", "gender", "level"):
+        if f in patch and patch[f] is None:
+            raise HTTPException(status_code=400, detail=f"{f} cannot be null")
+
     # If dod is being updated, recompute lunar fields
     if "dod" in patch:
         dod_val = patch["dod"]
