@@ -1,7 +1,9 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import logging
+import anyio
+import resend
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 async def send_otp_email(to_email: str, otp: str) -> bool:
@@ -44,23 +46,23 @@ If you did not request this, please ignore this email.
 This is an automated message from {settings.APP_NAME}. Please do not reply.
     """
     
+    if not settings.RESEND_API_KEY:
+        logger.error("RESEND_API_KEY is not configured; cannot send email")
+        return False
+
+    params: resend.Emails.SendParams = {
+        "from": settings.EMAIL_FROM,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = settings.SMTP_USER
-        msg["To"] = to_email
-        
-        part1 = MIMEText(text_body, "plain")
-        part2 = MIMEText(html_body, "html")
-        msg.attach(part1)
-        msg.attach(part2)
-        
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASS)
-            server.sendmail(settings.SMTP_USER, to_email, msg.as_string())
-        
+        resend.api_key = settings.RESEND_API_KEY
+        # resend SDK is synchronous; run it off the event loop.
+        await anyio.to_thread.run_sync(lambda: resend.Emails.send(params))
         return True
-    except Exception as e:
-        print(f"Failed to send email: {e}")
+    except Exception:
+        logger.exception("Failed to send email")
         return False

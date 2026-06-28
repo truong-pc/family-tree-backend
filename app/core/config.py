@@ -33,11 +33,9 @@ class Settings(BaseSettings):
     NEO4J_USER: str
     NEO4J_PASSWORD: str
 
-    # SMTP
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASS: str = ""
+    # Email via Resend HTTPS API
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = ""
 
     # Cloudinary — used to delete images
     # Left empty in dev: deletion is skipped with a logged warning instead of failing.
