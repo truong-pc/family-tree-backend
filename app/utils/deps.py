@@ -29,9 +29,9 @@ async def get_chart_or_404(chart_id: str):
         raise HTTPException(status_code=404, detail="Chart not found")
     owner = await mongo.client[settings.MONGODB_DB].users.find_one(
         {"_id": chart["ownerId"]},
-        {"full_name": 1},
+        {"fullName": 1},
     )
-    owner_name = owner.get("full_name") if owner else None
+    owner_name = owner.get("fullName") if owner else None
     return {**chart, "ownerName": owner_name}
 
 def can_read(chart, user_id: str | None):
