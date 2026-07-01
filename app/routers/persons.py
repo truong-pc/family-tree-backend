@@ -1,22 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from typing import Optional
 from app.models.person_model import PersonCreate, PersonCreateWithParent, PersonCreateWithSpouse, PersonUpdate, PersonOut, PersonDetailOut
 from app.utils.deps import get_current_user, get_chart_or_404, can_write, can_read
 from app.services.person_service import create_person, update_person, delete_person, get_person_detail, list_persons as list_persons_service
 from app.services.relationship_service import add_father_of, add_mother_of, add_spouse_of, check_spouse_couple
+from app.realtime.publish import publish_tree_change
+from app.realtime import events
 
 router = APIRouter(prefix="/api/v1/charts/{chartId}/persons", tags=["Persons"])
 
 @router.post("", response_model=PersonOut)
-async def create_person_route(chartId: str, body: PersonCreate, user=Depends(get_current_user)):
+async def create_person_route(chartId: str, body: PersonCreate, user=Depends(get_current_user),
+                              x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id")):
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
     node = await create_person(chartId, chart["ownerId"], body.name, body.gender, body.level, body.dob, body.dod, body.description, body.photoUrl)
+    await publish_tree_change(chartId, events.PERSON_CREATED, user, x_client_id,
+                              {"personId": node["personId"], "affectedPersonIds": [node["personId"]]})
     return node
 
 @router.post("/add-child", response_model=PersonOut)
-async def add_child_person_route(chartId: str, body: PersonCreateWithParent, user=Depends(get_current_user)):
+async def add_child_person_route(chartId: str, body: PersonCreateWithParent, user=Depends(get_current_user),
+                                 x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id")):
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -49,10 +55,18 @@ async def add_child_person_route(chartId: str, body: PersonCreateWithParent, use
         await delete_person(chartId, node["personId"])
         raise
 
+    affected = [node["personId"]]
+    if body.fatherId is not None:
+        affected.append(body.fatherId)
+    if body.motherId is not None:
+        affected.append(body.motherId)
+    await publish_tree_change(chartId, events.PERSON_CREATED, user, x_client_id,
+                              {"personId": node["personId"], "affectedPersonIds": affected})
     return node
 
 @router.post("/add-spouse", response_model=PersonOut)
-async def add_spouse_person_route(chartId: str, body: PersonCreateWithSpouse, user=Depends(get_current_user)):
+async def add_spouse_person_route(chartId: str, body: PersonCreateWithSpouse, user=Depends(get_current_user),
+                                  x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id")):
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -69,6 +83,8 @@ async def add_spouse_person_route(chartId: str, body: PersonCreateWithSpouse, us
         await delete_person(chartId, node["personId"])
         raise
 
+    await publish_tree_change(chartId, events.PERSON_CREATED, user, x_client_id,
+                              {"personId": node["personId"], "affectedPersonIds": [node["personId"], body.spouseId]})
     return node
 
 @router.get("/{personId}", response_model=PersonDetailOut)
@@ -89,17 +105,23 @@ async def list_persons_route(chartId: str, q: Optional[str] = Query(None), gende
     return {"data": nodes}
 
 @router.patch("/{personId}", response_model=PersonOut)
-async def update_person_route(chartId: str, personId: int, body: PersonUpdate, user=Depends(get_current_user)):
+async def update_person_route(chartId: str, personId: int, body: PersonUpdate, user=Depends(get_current_user),
+                             x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id")):
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
     node = await update_person(chartId, personId, body.model_dump(exclude_unset=True))
+    await publish_tree_change(chartId, events.PERSON_UPDATED, user, x_client_id,
+                              {"personId": personId, "affectedPersonIds": [personId]})
     return node
 
 @router.delete("/{personId}")
-async def delete_person_route(chartId: str, personId: int, user=Depends(get_current_user)):
+async def delete_person_route(chartId: str, personId: int, user=Depends(get_current_user),
+                             x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id")):
     chart = await get_chart_or_404(chartId)
     if not can_write(chart, user["_id"]):
         raise HTTPException(status_code=403, detail="Forbidden")
     await delete_person(chartId, personId)
+    await publish_tree_change(chartId, events.PERSON_DELETED, user, x_client_id,
+                              {"personId": personId, "affectedPersonIds": [personId]})
     return {"message": "Person deleted"}

@@ -23,6 +23,26 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(b
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
 
+async def get_user_from_token(token: str | None):
+    """Decode a raw JWT access token and load the user; return None if invalid.
+
+    Used by the WebSocket endpoint, where auth failures are handled by closing the
+    socket with a custom code (not by raising HTTP exceptions).
+    """
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            return None
+        user_id = payload.get("sub")
+    except JWTError:
+        return None
+    if not user_id:
+        return None
+    return await mongo.client[settings.MONGODB_DB].users.find_one({"_id": user_id})
+
+
 async def get_chart_or_404(chart_id: str):
     chart = await mongo.client[settings.MONGODB_DB].charts_meta.find_one({"_id": chart_id})
     if not chart:
