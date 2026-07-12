@@ -265,7 +265,7 @@ def _expand(ev: dict, today: date, end: date) -> Optional[dict]:
     # lunar yearly: scan lunar years that could land in the solar window
     today_ly = Solar.fromYmd(today.year, today.month, today.day).getLunar().getYear()
     end_ly = Solar.fromYmd(end.year, end.month, end.day).getLunar().getYear()
-    for ly in range(today_ly, end_ly + 2):
+    for ly in range(today_ly, end_ly + 1):
         occ = _lunar_candidate(ly, ev["month"], ev["day"], ev["isLeapMonth"])
         if occ and today <= occ <= end:
             return {**ev, "occurrenceDate": occ, "daysUntil": (occ - today).days}
